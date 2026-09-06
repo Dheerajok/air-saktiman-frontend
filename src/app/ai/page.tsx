@@ -31,6 +31,120 @@ interface ChatMessage {
   };
 }
 
+function parseInlineMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith('**') && token.endsWith('**')) {
+      parts.push(
+        <strong key={match.index} className="font-bold text-[#202124]">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith('*') && token.endsWith('*')) {
+      parts.push(
+        <em key={match.index} className="italic text-[#5F6368]">
+          {token.slice(1, -1)}
+        </em>
+      );
+    } else if (token.startsWith('`') && token.endsWith('`')) {
+      parts.push(
+        <code key={match.index} className="px-1.5 py-0.5 rounded-md bg-[#E8EAED] text-[#202124] font-mono text-[11px]">
+          {token.slice(1, -1)}
+        </code>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
+function FormattedMessageContent({ content, isUser }: { content: string; isUser: boolean }) {
+  if (isUser) {
+    return <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-line">{content}</p>;
+  }
+
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: React.ReactNode[] = [];
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`ul_${elements.length}`} className="space-y-2 my-2 pl-1">
+          {currentList}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <h4 key={idx} className="font-bold text-sm text-[#202124] mt-3 mb-1">
+          {parseInlineMarkdown(trimmed.slice(4))}
+        </h4>
+      );
+    } else if (trimmed.startsWith('## ') || trimmed.startsWith('# ')) {
+      flushList();
+      elements.push(
+        <h3 key={idx} className="font-black text-sm text-[#202124] mt-3.5 mb-1.5">
+          {parseInlineMarkdown(trimmed.replace(/^#+\s/, ''))}
+        </h3>
+      );
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+      const bulletText = trimmed.replace(/^[-*•]\s+/, '');
+      currentList.push(
+        <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm leading-relaxed text-[#3C4043]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#34A853] mt-2 shrink-0" />
+          <span className="flex-1">{parseInlineMarkdown(bulletText)}</span>
+        </li>
+      );
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      const match = trimmed.match(/^(\d+)\.\s+(.*)/);
+      if (match) {
+        currentList.push(
+          <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm leading-relaxed text-[#3C4043]">
+            <span className="font-bold text-[#4285F4] text-xs shrink-0 mt-0.5">{match[1]}.</span>
+            <span className="flex-1">{parseInlineMarkdown(match[2])}</span>
+          </li>
+        );
+      }
+    } else {
+      flushList();
+      elements.push(
+        <p key={idx} className="text-xs sm:text-sm leading-relaxed text-[#3C4043] my-1">
+          {parseInlineMarkdown(trimmed)}
+        </p>
+      );
+    }
+  });
+
+  flushList();
+
+  return <div className="space-y-1.5">{elements}</div>;
+}
+
 export default function AIAssistantPage() {
   const { player, addToast } = useGamification();
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -172,9 +286,7 @@ export default function AIAssistantPage() {
                   : 'bg-[#F8FAFD] border border-[#E8EAED] text-[#202124] p-4 rounded-3xl rounded-tl-sm'
               }`}
             >
-              <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-line">
-                {msg.text}
-              </p>
+              <FormattedMessageContent content={msg.text} isUser={msg.sender === 'user'} />
 
               {/* Embedded AQI Card inside AI response */}
               {msg.hasAqiCard && (
