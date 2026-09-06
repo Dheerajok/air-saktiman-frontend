@@ -33,34 +33,53 @@ interface ChatMessage {
 
 function parseInlineMarkdown(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  // Regex matching **bold**, *bold*, __bold__, _bold_, and `code`
+  const regex = /(\*\*(.+?)\*\*|\*([^*\n]+)\*|__([^_]+)__|_([^_]+)_|`([^`]+)`)/g;
   let lastIndex = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push(text.substring(lastIndex, match.index));
     }
-    const token = match[0];
-    if (token.startsWith('**') && token.endsWith('**')) {
+
+    if (match[2]) {
+      // **bold**
       parts.push(
-        <strong key={match.index} className="font-bold text-[#202124]">
-          {token.slice(2, -2)}
+        <strong key={`b_${match.index}`} className="font-bold text-[#202124]">
+          {match[2]}
         </strong>
       );
-    } else if (token.startsWith('*') && token.endsWith('*')) {
+    } else if (match[3]) {
+      // *bold*
       parts.push(
-        <em key={match.index} className="italic text-[#5F6368]">
-          {token.slice(1, -1)}
-        </em>
+        <strong key={`sb_${match.index}`} className="font-bold text-[#202124]">
+          {match[3]}
+        </strong>
       );
-    } else if (token.startsWith('`') && token.endsWith('`')) {
+    } else if (match[4]) {
+      // __bold__
       parts.push(
-        <code key={match.index} className="px-1.5 py-0.5 rounded-md bg-[#E8EAED] text-[#202124] font-mono text-[11px]">
-          {token.slice(1, -1)}
+        <strong key={`ub_${match.index}`} className="font-bold text-[#202124]">
+          {match[4]}
+        </strong>
+      );
+    } else if (match[5]) {
+      // _bold_
+      parts.push(
+        <strong key={`sub_${match.index}`} className="font-bold text-[#202124]">
+          {match[5]}
+        </strong>
+      );
+    } else if (match[6]) {
+      // `code`
+      parts.push(
+        <code key={`c_${match.index}`} className="px-1.5 py-0.5 rounded-md bg-[#E8EAED] text-[#202124] font-mono text-[11px]">
+          {match[6]}
         </code>
       );
     }
+
     lastIndex = regex.lastIndex;
   }
 
