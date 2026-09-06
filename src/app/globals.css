@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --surface-card: #ffffff;
+    --surface-muted: #f8fafd;
+    --border-color: #e8eaed;
+    --foreground: #202124;
+    --muted-foreground: #5f6368;
+    
+    /* Google 4-Color Accents */
+    --gdg-blue: #4285F4;
+    --gdg-blue-light: #E8F0FE;
+    --gdg-red: #EA4335;
+    --gdg-red-light: #FCE8E6;
+    --gdg-yellow: #FBBC05;
+    --gdg-yellow-light: #FEF7E0;
+    --gdg-green: #34A853;
+    --gdg-green-light: #E6F4EA;
+
+    /* AQI Specific Indicators */
+    --aqi-good: #34A853;
+    --aqi-moderate: #FBBC05;
+    --aqi-poor: #FA7B17;
+    --aqi-unhealthy: #EA4335;
+    --aqi-hazardous: #A142F4;
+  }
+}
+
+body {
+  background-color: #F8FAFD;
+  color: #202124;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom glass / card shadows */
+.gdg-card {
+  background: #ffffff;
+  border: 1px solid #E8EAED;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.08), 0 4px 8px rgba(60, 64, 67, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gdg-card:hover {
+  box-shadow: 0 4px 12px rgba(60, 64, 67, 0.12), 0 8px 24px rgba(60, 64, 67, 0.06);
+}
+
+.gdg-card-active {
+  background: #ffffff;
+  border: 1.5px solid #4285F4;
+  box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.12);
+}
+
+/* Rounded geometric badges */
+.gdg-badge-blue {
+  background-color: #E8F0FE;
+  color: #1967D2;
+  border: 1px solid #D2E3FC;
+}
+
+.gdg-badge-green {
+  background-color: #E6F4EA;
+  color: #137333;
+  border: 1px solid #CEEAD6;
+}
+
+.gdg-badge-yellow {
+  background-color: #FEF7E0;
+  color: #B06000;
+  border: 1px solid #FEEFC3;
+}
+
+.gdg-badge-red {
+  background-color: #FCE8E6;
+  color: #C5221F;
+  border: 1px solid #FAD2CF;
+}
+
+/* Google-style geometric shapes decoration */
+.gdg-dot-blue { background-color: #4285F4; }
+.gdg-dot-red { background-color: #EA4335; }
+.gdg-dot-yellow { background-color: #FBBC05; }
+.gdg-dot-green { background-color: #34A853; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F3F4;
+}
+::-webkit-scrollbar-thumb {
+  background: #DADCE0;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #BDC1C6;
+}
+
+/* Pulsing live dot */
+@keyframes live-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.6;
+  }
+}
+
+.animate-live-pulse {
+  animation: live-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
