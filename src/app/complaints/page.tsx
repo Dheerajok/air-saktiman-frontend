@@ -24,9 +24,10 @@ import { complaintsApi } from '@/lib/api/complaints';
 
 export default function ComplaintsPage() {
   const { addToast, awardPlayerXpAndImpact, refreshPlayerData } = useGamification();
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -40,8 +41,15 @@ export default function ComplaintsPage() {
   const loadComplaints = React.useCallback(async () => {
     try {
       const liveComplaints = await complaintsApi.getAllComplaints();
-      if (liveComplaints && liveComplaints.length > 0) {
+      if (liveComplaints && Array.isArray(liveComplaints)) {
         setComplaints(liveComplaints as any);
+        if (liveComplaints.length > 0) {
+          setSelectedComplaint((prev) => {
+            if (!prev) return liveComplaints[0] as any;
+            const found = liveComplaints.find((c: any) => c.id === prev.id || c.ticketNumber === prev.ticketNumber);
+            return (found as any) || (liveComplaints[0] as any);
+          });
+        }
       }
     } catch (err) {
       console.warn('Could not load complaints:', err);
@@ -80,8 +88,9 @@ export default function ComplaintsPage() {
 
   const handleFileComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !location.trim()) return;
+    if (!title.trim() || !location.trim() || isSubmitting) return;
 
+    setIsSubmitting(true);
     awardPlayerXpAndImpact(50, 15);
 
     try {
@@ -94,6 +103,27 @@ export default function ComplaintsPage() {
         description,
         photoFile: photoFile || undefined,
       });
+
+      if (res) {
+        const newTicket: Complaint = {
+          id: res._id || res.id || `cmp_${Date.now()}`,
+          ticketNumber: res.ticketNumber || `AG-CMP-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          title: res.title || title,
+          category: res.category || category,
+          severity: res.severity || severity,
+          zone: res.zone || zone,
+          location: res.location || location,
+          description: res.description || description,
+          status: res.status || 'Submitted',
+          timestamp: 'Just now',
+          xpAwarded: 100,
+          assignedOfficer: res.assignedOfficer || 'Municipal Taskforce Dispatch Desk (Automated Triage)',
+          imageUrl: res.imageUrl,
+        };
+        setComplaints((prev) => [newTicket, ...prev.filter((x) => x.id !== newTicket.id)]);
+        setSelectedComplaint(newTicket);
+      }
+
       await loadComplaints();
       await refreshPlayerData();
       addToast({
@@ -118,13 +148,16 @@ export default function ComplaintsPage() {
         xpAwarded: 100,
         assignedOfficer: 'Municipal Taskforce Dispatch Desk (Automated Triage)',
       };
-      setComplaints([newTicket, ...complaints]);
+      setComplaints((prev) => [newTicket, ...prev]);
+      setSelectedComplaint(newTicket);
       addToast({
         title: '📋 Complaint Filed',
         description: `Ticket ${newTicket.ticketNumber} registered. +50 XP submission bonus!`,
         type: 'success',
         xpReward: 50,
       });
+    } finally {
+      setIsSubmitting(false);
     }
 
     setShowModal(false);
