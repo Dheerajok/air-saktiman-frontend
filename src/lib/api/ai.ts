@@ -34,14 +34,42 @@ export const aiApi = {
     return apiClient.post('/ai/simulate', params);
   },
 
-  async chat(message: string, history?: Array<{ role: string; content: string }>): Promise<{ reply: string; timestamp: string }> {
+  async chat(
+    message: string,
+    history?: Array<{ role: string; content: string }>,
+    threadId?: string,
+  ): Promise<{ reply: string; timestamp: string }> {
+    // 1. Try Backend API (which routes to Flow webhook and Gemini)
     try {
-      const res = await apiClient.post<{ reply: string; timestamp: string }>('/ai/chat', { message, history });
+      const res = await apiClient.post<{ reply: string; timestamp: string }>('/ai/chat', { message, history, threadId });
       if (res && res.reply) return res;
     } catch {
-      // Direct frontend Gemini call if backend is offline
+      // Backend offline, fallback to direct webhook
     }
 
+    // 2. Direct sokt.io webhook fallback
+    const webhookUrl = process.env.NEXT_PUBLIC_AI_WEBHOOK_URL || 'https://flow.sokt.io/func/scri6FK63y22';
+    try {
+      const flowRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: message,
+          query: message,
+          message: message,
+          threadid: threadId || `session_${Date.now()}`,
+        }),
+      });
+      if (flowRes.ok) {
+        const data = await flowRes.json();
+        const reply = data?.reply || data?.message || data?.output || (typeof data === 'string' ? data : null);
+        if (reply && typeof reply === 'string' && reply.trim().length > 0) {
+          return { reply: reply.trim(), timestamp: new Date().toISOString() };
+        }
+      }
+    } catch {}
+
+    // 3. Direct Gemini API fallback
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (apiKey) {
       try {

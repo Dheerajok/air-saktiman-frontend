@@ -44,6 +44,7 @@ export default function AIAssistantPage() {
   const [inputPrompt, setInputPrompt] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const threadIdRef = useRef<string>(`session_${Date.now()}`);
 
   const suggestedPrompts = [
     'Explain today\'s AQI & health risks',
@@ -83,7 +84,7 @@ export default function AIAssistantPage() {
         content: m.text,
       }));
 
-      const res = await aiApi.chat(prompt, historyPayload);
+      const res = await aiApi.chat(prompt, historyPayload, threadIdRef.current);
       const lower = prompt.toLowerCase();
       const hasCard = lower.includes('aqi') || lower.includes('zone 04') || lower.includes('pm2.5');
       let action = undefined;
