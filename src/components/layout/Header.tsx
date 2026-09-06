@@ -22,7 +22,7 @@ interface HeaderProps {
 }
 
 export function Header({ onToggleSidebar }: HeaderProps) {
-  const { player, role, setRole } = useGamification();
+  const { player, role, setRole, airQuality } = useGamification();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
@@ -32,6 +32,16 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     { id: 3, text: 'New Clean Air Event scheduled in Zone 04', time: '3h ago', unread: false },
     { id: 4, text: 'Your pollution report was verified by Municipal Team', time: '1d ago', unread: false },
   ];
+
+  const aqiColorClass =
+    airQuality.aqi <= 50
+      ? 'bg-[#E6F4EA] border-[#CEEAD6] text-[#137333]'
+      : airQuality.aqi <= 100
+      ? 'bg-[#FEF7E0] border-[#FEEFC3] text-[#B06000]'
+      : 'bg-[#FCE8E6] border-[#FAD2CF] text-[#C5221F]';
+
+  const aqiDotColor =
+    airQuality.aqi <= 50 ? 'bg-[#34A853]' : airQuality.aqi <= 100 ? 'bg-[#FBBC05]' : 'bg-[#EA4335]';
 
   return (
     <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-[#E8EAED] bg-white px-4 md:px-6">
@@ -60,13 +70,15 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         {/* Live AQI Badge */}
         <Link
           href="/dashboard"
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FEF7E0] border border-[#FEEFC3] text-[#B06000] text-xs font-semibold hover:opacity-90 transition-opacity"
+          className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold hover:opacity-90 transition-opacity ${aqiColorClass}`}
         >
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FBBC05] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FBBC05]"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${aqiDotColor}`}></span>
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${aqiDotColor}`}></span>
           </span>
-          <span>AQI 72 Moderate</span>
+          <span>
+            AQI {airQuality.aqi} {typeof airQuality.level === 'string' ? airQuality.level.replace('_', ' ') : 'Live'}
+          </span>
         </Link>
 
         {/* Streak Counter */}

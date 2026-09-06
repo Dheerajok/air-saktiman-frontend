@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function PlayerDashboard() {
-  const { player, missions, activeMissionIds } = useGamification();
+  const { player, missions, activeMissionIds, airQuality } = useGamification();
 
   // Pick top featured mission
   const todaysMission = missions[0];
@@ -147,7 +147,7 @@ export default function PlayerDashboard() {
               Detailed Sensor Map →
             </Link>
           </div>
-          <AirQualityCard data={mockAirQuality} />
+          <AirQualityCard data={airQuality} />
         </div>
 
         {/* Today's Featured Mission */}

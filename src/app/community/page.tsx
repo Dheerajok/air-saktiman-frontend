@@ -24,7 +24,7 @@ import {
 import { communityApi } from '@/lib/api/community';
 
 export default function CommunityPage() {
-  const { player, addToast } = useGamification();
+  const { player, addToast, awardPlayerXpAndImpact, refreshPlayerData } = useGamification();
   const [posts, setPosts] = useState<CommunityPost[]>(mockCommunityPosts);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newContent, setNewContent] = useState('');
@@ -49,19 +49,17 @@ export default function CommunityPage() {
 
   const handleLike = async (id: string) => {
     setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          const isLiked = !p.isLiked;
-          const currentLikes = p.likes ?? p.likesCount ?? 0;
+      prev.map((post) => {
+        if (post.id === id) {
+          const isLiked = !post.isLiked;
           return {
-            ...p,
+            ...post,
             isLiked,
-            likes: isLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1),
-            likesCount: isLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1),
+            likes: isLiked ? post.likes + 1 : Math.max(0, post.likes - 1),
           };
         }
-        return p;
-      }),
+        return post;
+      })
     );
 
     try {
@@ -75,9 +73,12 @@ export default function CommunityPage() {
     e.preventDefault();
     if (!newContent.trim()) return;
 
+    awardPlayerXpAndImpact(50, 10);
+
     try {
       await communityApi.createPost(newContent, newTag, selectedImage || undefined);
       await loadPosts();
+      await refreshPlayerData();
     } catch {
       // optimistic local fallback
       const newPost: CommunityPost = {

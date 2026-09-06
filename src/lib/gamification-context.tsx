@@ -1,11 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { PlayerStats, UserRole, Mission, RewardItem } from '@/types';
-import { mockPlayerStats, mockMissions, mockRewards } from './mock-data';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { PlayerStats, UserRole, Mission, RewardItem, AirQualityData } from '@/types';
+import { mockPlayerStats, mockMissions, mockRewards, mockAirQuality } from './mock-data';
 import { authApi } from './api/auth';
 import { missionsApi } from './api/missions';
 import { rewardsApi } from './api/rewards';
+import { airQualityApi } from './api/air-quality';
 import { setToken, getToken } from './api/client';
 import confetti from 'canvas-confetti';
 
@@ -21,6 +22,7 @@ interface GamificationContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   player: PlayerStats;
+  airQuality: AirQualityData;
   missions: Mission[];
   completedMissionIds: string[];
   activeMissionIds: string[];
@@ -30,9 +32,11 @@ interface GamificationContextType {
   closeLevelUpModal: () => void;
   acceptMission: (missionId: string) => Promise<void>;
   completeMission: (missionId: string, photoFile?: File) => Promise<void>;
+  awardPlayerXpAndImpact: (xp: number, impact: number) => void;
   redeemReward: (reward: RewardItem) => Promise<boolean>;
   updatePlayerProfile: (data: Partial<PlayerStats>) => Promise<void>;
   refreshPlayerData: () => Promise<void>;
+  refreshAirQuality: () => Promise<void>;
   dismissToast: (id: string) => void;
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
 }
@@ -42,12 +46,14 @@ const GamificationContext = createContext<GamificationContextType | undefined>(u
 export function GamificationProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<UserRole>('PLAYER');
   const [player, setPlayer] = useState<PlayerStats>(mockPlayerStats);
+  const [airQuality, setAirQuality] = useState<AirQualityData>(mockAirQuality);
   const [missions, setMissions] = useState<Mission[]>(mockMissions);
   const [activeMissionIds, setActiveMissionIds] = useState<string[]>([]);
-  const [completedMissionIds, setCompletedMissionIds] = useState<string[]>(['m_106']);
+  const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [showLevelUpModal, setShowLevelUpModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const previousLevelRef = useRef<number>(player.level);
 
   const addToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
     const newToast: ToastMessage = {
@@ -71,17 +77,17 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
     avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     role: user.role || 'PLAYER',
     level: user.level || 1,
-    currentXp: user.currentXp || 0,
+    currentXp: user.currentXp ?? 0,
     nextLevelXp: user.nextLevelXp || 500,
-    rank: user.rank || (user.level > 20 ? 'Air Marshal' : user.level > 10 ? 'Eco Scout' : 'Novice'),
+    rank: user.rank || (user.level >= 25 ? 'Climate Defender' : user.level >= 10 ? 'Air Guardian' : user.level >= 3 ? 'Eco Scout' : 'Novice'),
     globalRank: user.globalRank || 100,
-    streakDays: user.streakDays || 1,
-    contributionScore: user.contributionScore || user.currentXp || 0,
-    co2OffsetKg: user.co2OffsetKg || (user.treesPlanted ? user.treesPlanted * 20 : 45),
-    treesPlanted: user.treesPlanted || 0,
-    reportsSubmitted: user.reportsSubmitted || 0,
-    missionsCompleted: user.missionsCompleted || 0,
-    availablePoints: user.availablePoints || 100,
+    streakDays: user.streakDays ?? 1,
+    contributionScore: user.contributionScore ?? 0,
+    co2OffsetKg: user.co2OffsetKg ?? (user.treesPlanted ? user.treesPlanted * 20 : 0),
+    treesPlanted: user.treesPlanted ?? 0,
+    reportsSubmitted: user.reportsSubmitted ?? 0,
+    missionsCompleted: user.missionsCompleted ?? 0,
+    availablePoints: user.availablePoints ?? 100,
     assignedZone: user.assignedZone || 'Zone 04 - Dwarka Greens',
     badges: (user.badges || []).map((b: any) =>
       typeof b === 'string'
@@ -101,11 +107,36 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
     try {
       const user = await authApi.getMe();
       if (user) {
-        setPlayer(mapBackendUserToPlayer(user));
+        const mapped = mapBackendUserToPlayer(user);
+        if (mapped.level > previousLevelRef.current && previousLevelRef.current > 0) {
+          setShowLevelUpModal(true);
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.5 },
+              colors: ['#4285F4', '#EA4335', '#FBBC05', '#34A853'],
+            });
+          } catch {}
+        }
+        previousLevelRef.current = mapped.level;
+        setPlayer(mapped);
         if (user.role) setRoleState(user.role);
       }
     } catch {
       // Backend not running or token expired
+    }
+  }, []);
+
+  // Fetch live air quality
+  const refreshAirQuality = useCallback(async () => {
+    try {
+      const live = await airQualityApi.getLiveAirQuality();
+      if (live && live.aqi) {
+        setAirQuality(live);
+      }
+    } catch {
+      // Keep fallback
     }
   }, []);
 
@@ -119,6 +150,46 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
     } catch {
       // Keep fallback
     }
+  }, []);
+
+  // Helper to instantly award XP and impact locally & check level up
+  const awardPlayerXpAndImpact = useCallback((xp: number, impact: number) => {
+    setPlayer((prev) => {
+      const newXp = prev.currentXp + xp;
+      let newLevel = prev.level;
+      let newNextXp = prev.nextLevelXp;
+      let didLevelUp = false;
+
+      while (newXp >= newNextXp) {
+        newLevel += 1;
+        newNextXp = Math.round(newNextXp * 1.35);
+        didLevelUp = true;
+      }
+
+      if (didLevelUp) {
+        setShowLevelUpModal(true);
+        try {
+          confetti({
+            particleCount: 100,
+            spread: 80,
+            origin: { y: 0.5 },
+            colors: ['#4285F4', '#EA4335', '#FBBC05', '#34A853'],
+          });
+        } catch {}
+      }
+
+      const newRank = newLevel >= 25 ? 'Climate Defender' : newLevel >= 10 ? 'Air Guardian' : newLevel >= 3 ? 'Eco Scout' : 'Novice';
+
+      return {
+        ...prev,
+        currentXp: newXp,
+        level: newLevel,
+        nextLevelXp: newNextXp,
+        rank: newRank,
+        contributionScore: prev.contributionScore + impact,
+        availablePoints: prev.availablePoints + xp,
+      };
+    });
   }, []);
 
   // Role Switcher with Backend Synchronization
@@ -139,7 +210,9 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
 
       const res = await authApi.login({ email, password });
       if (res.user) {
-        setPlayer(mapBackendUserToPlayer(res.user));
+        const mapped = mapBackendUserToPlayer(res.user);
+        previousLevelRef.current = mapped.level;
+        setPlayer(mapped);
         addToast({
           title: `Switched to ${newRole.replace('_', ' ')}`,
           description: `Logged in as ${res.user.name} (${res.user.email})`,
@@ -152,7 +225,7 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
       setPlayer((prev) => ({
         ...prev,
         role: newRole,
-        name: newRole === 'ADMIN' ? 'Admin AirGuard' : newRole === 'COMPANY_ADMIN' ? 'EcoCorp Sustainability' : 'Aarav Sharma',
+        name: newRole === 'ADMIN' ? 'Admin AirGuard' : newRole === 'COMPANY_ADMIN' ? 'EcoCorp Sustainability' : 'Citizen Guardian',
       }));
     } finally {
       setIsLoading(false);
@@ -169,7 +242,9 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
           try {
             const parsed = JSON.parse(storedUser);
             if (parsed.role) setRoleState(parsed.role);
-            setPlayer(mapBackendUserToPlayer(parsed));
+            const mapped = mapBackendUserToPlayer(parsed);
+            previousLevelRef.current = mapped.level;
+            setPlayer(mapped);
           } catch {}
         }
         const token = getToken();
@@ -177,6 +252,7 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
           await refreshPlayerData();
           await refreshMissions();
         }
+        await refreshAirQuality();
       } catch (e) {
         console.warn('Init backend error:', e);
       } finally {
@@ -184,7 +260,11 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
       }
     }
     init();
-  }, [refreshPlayerData, refreshMissions]);
+
+    // Auto-poll live AQI every 60 seconds
+    const aqiInterval = setInterval(refreshAirQuality, 60000);
+    return () => clearInterval(aqiInterval);
+  }, [refreshPlayerData, refreshMissions, refreshAirQuality]);
 
   const acceptMission = async (missionId: string) => {
     if (activeMissionIds.includes(missionId) || completedMissionIds.includes(missionId)) return;
@@ -222,30 +302,18 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
     const earnedXp = m.xpReward || 200;
     const earnedImpact = m.impactScore || 35;
 
+    // Optimistic / direct state update
+    awardPlayerXpAndImpact(earnedXp, earnedImpact);
+    setPlayer((prev) => ({
+      ...prev,
+      missionsCompleted: prev.missionsCompleted + 1,
+    }));
+
     try {
       await missionsApi.completeMission(missionId, photoFile);
       await refreshPlayerData();
     } catch {
-      // Local optimistic update
-      setPlayer((prev) => {
-        const newXp = prev.currentXp + earnedXp;
-        let newLevel = prev.level;
-        let newNextXp = prev.nextLevelXp;
-        if (newXp >= prev.nextLevelXp) {
-          newLevel += 1;
-          newNextXp = Math.round(prev.nextLevelXp * 1.35);
-          setShowLevelUpModal(true);
-        }
-        return {
-          ...prev,
-          currentXp: newXp,
-          level: newLevel,
-          nextLevelXp: newNextXp,
-          contributionScore: prev.contributionScore + earnedImpact,
-          missionsCompleted: prev.missionsCompleted + 1,
-          availablePoints: prev.availablePoints + earnedXp,
-        };
-      });
+      // Local optimistic state is already applied
     }
 
     setActiveMissionIds((prev) => prev.filter((id) => id !== missionId));
@@ -327,6 +395,7 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
         role,
         setRole,
         player,
+        airQuality,
         missions,
         completedMissionIds,
         activeMissionIds,
@@ -336,9 +405,11 @@ export function GamificationProvider({ children }: { children: React.ReactNode }
         closeLevelUpModal,
         acceptMission,
         completeMission,
+        awardPlayerXpAndImpact,
         redeemReward,
         updatePlayerProfile,
         refreshPlayerData,
+        refreshAirQuality,
         dismissToast,
         addToast,
       }}

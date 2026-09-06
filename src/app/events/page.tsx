@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function EventsPage() {
-  const { addToast } = useGamification();
+  const { addToast, awardPlayerXpAndImpact } = useGamification();
   const [eventsList, setEventsList] = useState<EventItem[]>(mockEvents);
   const [activeFilter, setActiveFilter] = useState<'Upcoming' | 'Nearby' | 'Joined'>('Upcoming');
 
@@ -27,10 +27,13 @@ export default function EventsPage() {
       prev.map((e) => {
         if (e.id === id) {
           const isJoined = !e.isJoined;
+          if (isJoined) {
+            awardPlayerXpAndImpact(50, 10);
+          }
           addToast({
             title: isJoined ? '🎉 Event Joined!' : 'Registration Cancelled',
             description: isJoined
-              ? `You are registered for "${e.title}". Calendar invite queued.`
+              ? `You are registered for "${e.title}". +50 XP bonus added!`
               : `Removed registration for "${e.title}".`,
             type: isJoined ? 'success' : 'info',
             xpReward: isJoined ? 50 : undefined,

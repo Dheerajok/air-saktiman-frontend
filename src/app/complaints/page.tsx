@@ -23,7 +23,7 @@ import {
 import { complaintsApi } from '@/lib/api/complaints';
 
 export default function ComplaintsPage() {
-  const { addToast } = useGamification();
+  const { addToast, awardPlayerXpAndImpact, refreshPlayerData } = useGamification();
   const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
   const [showModal, setShowModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
@@ -82,6 +82,8 @@ export default function ComplaintsPage() {
     e.preventDefault();
     if (!title.trim() || !location.trim()) return;
 
+    awardPlayerXpAndImpact(50, 15);
+
     try {
       const res = await complaintsApi.fileComplaint({
         title,
@@ -93,9 +95,10 @@ export default function ComplaintsPage() {
         photoFile: photoFile || undefined,
       });
       await loadComplaints();
+      await refreshPlayerData();
       addToast({
         title: '📋 Complaint Filed Successfully',
-        description: `Ticket ${res?.ticketNumber || 'AIR-2026'} registered. Saved to MongoDB!`,
+        description: `Ticket ${res?.ticketNumber || 'AIR-2026'} registered. +50 XP awarded!`,
         type: 'success',
         xpReward: 50,
       });
